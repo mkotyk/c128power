@@ -38,3 +38,10 @@ Hardware
 * Step by step pictures to come *
 
 
+Software
+--------
+
+This project uses the software serial routines from 
+https://github.com/blalor/avr-softuart
+
+

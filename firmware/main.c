@@ -9,7 +9,7 @@
 
 // Pin 1 (PB5) - ROM Bank Switch (Low = Orig/High = JiffyDOS)
 // Pin 2 (PB3) - ATX Power Remote (Low = ON)
-// Pin 3 (PB4) - TOD Clock Out (60Hz) (R7/U16 Pin 5)     
+// Pin 3 (PB4|OCB1) - TOD Clock Out (60Hz) (R7/U16 Pin 5)     
 // Pin 4 - GND                      
 // Pin 5 (PB0) - Rx -> U.P. Pin M (PA2)
 // Pin 6 (PB1) - Tx -> U.P. Pin B+C (FLAGS2+PB0)
@@ -23,19 +23,17 @@ const uint8_t POWER_ENABLE_PIN = (1 << PB3);
 const uint8_t TOD_CLOCK_PIN    = (1 << PB4);
 const uint8_t ROM_SELECT_PIN   = (1 << PB5);
 
-#define IDLE_TIMEOUT 3000
-#define SHORT_PRESS  10
-#define LONG_PRESS   400
-#define TOD_CYCLES   (F_CPU/8/60) // TODO: Tune this
+#define SHORT_PRESS  30    // 1 Second
+#define LONG_PRESS   300   // 10 Seconds
+#define IDLE_TIMEOUT 3000  // 5 Mins
 
 #define CMD_OK       0
 #define CMD_ERROR    1
 
-uint8_t g_power_enabled = 0;
+uint8_t g_power_enabled = 1;
 uint8_t g_rom_select = 0;
 uint16_t g_press_down_timer = 0;
 uint16_t g_idle_timer = 0;
-uint16_t g_tod_count = 0;
 
 void setup(void);
 
@@ -63,16 +61,11 @@ static void power_up(void)
     PORTB &= ~POWER_ENABLE_PIN;
 }
 
-ISR(TIMER0_OVF_vect)
+// Overflow at 30Hz
+ISR(TIMER1_OVF_vect)
 {
-    // Generate a 60Hz clock for Time Of Day
-    g_tod_count++;
-    if(g_power_enabled && (g_tod_count > TOD_CYCLES))
-    {
-        g_tod_count = 0;
-        PORTB ^= TOD_CLOCK_PIN;
-    }
-
+    if((g_idle_timer % 300) == 0)
+        PORTB ^= POWER_ENABLE_PIN;
     // Check if the RESTORE key is being pressed.
     if(!(PINB & RESTORE_KEY_PIN))
     {
@@ -94,13 +87,16 @@ ISR(TIMER0_OVF_vect)
         g_press_down_timer = 0;
         g_idle_timer++;
 
-        if(!g_power_enabled && (g_idle_timer > IDLE_TIMEOUT))
-        {
-            hibernate();
-        }
+//        if(!g_power_enabled && (g_idle_timer > IDLE_TIMEOUT))
+//        {
+//            hibernate();
+//        }
     }
 }
 
+ISR(PCINT0_vect)
+{
+}
 
 void setup(void)
 {
@@ -108,12 +104,20 @@ void setup(void)
     g_idle_timer = 0;
 
     DDRB = TOD_CLOCK_PIN | ROM_SELECT_PIN | POWER_ENABLE_PIN | UART_TX_PIN;
-    PORTB = (g_rom_select * ROM_SELECT_PIN) | (g_power_enabled?0:POWER_ENABLE_PIN);
+    PORTB = (g_rom_select * ROM_SELECT_PIN) | (g_power_enabled?0:POWER_ENABLE_PIN) | RESTORE_KEY_PIN;
     PCMSK = RESTORE_KEY_PIN;
 
     softuart_init();
-    TIMSK |= (1 << TOIE0);
-    GIMSK |= (1 << PCIE);               // Set general interrupt pin change
+
+    // Configure OCR1B output for 60Hz
+    TCCR1 = _BV(CTC1) | _BV(CS13) | _BV(CS11) | _BV(CS10);
+    GTCCR = _BV(PWM1B) | _BV(COM1B0);
+    OCR1A = 0;
+    OCR1B = 66;
+    OCR1C = 132;
+
+    TIMSK |= _BV(TOV1);
+    GIMSK |= _BV(PCIE);
 
     sei();                              // Enable interrupts 
 }
@@ -163,31 +167,34 @@ int main(void)
     softuart_puts(PSTR("c128power v1.0"));
     while(1)
     {
-        c = softuart_getchar();
-        switch(c)
-        {
-            case '\n':
+        if(softuart_kbhit()) {
+            c = softuart_getchar();
+            switch(c)
             {
-               *p = 0;
-               p = cmd;
-               if(execute_cmd(cmd) == CMD_OK)
-                   softuart_puts(PSTR("ok\n"));
-               else
-                   softuart_puts(PSTR("error\n"));
-               break; 
-            }
-            default:
-            {
-                if(p < cmd+(sizeof(cmd)))
-                {
-                    *p++ = c;
-                }
-                else
-                {
-                    softuart_putchar(7); // bell
-                }
-            }
-        } 
+                case '\n':
+                    {
+                        *p = 0;
+                        p = cmd;
+                        if(execute_cmd(cmd) == CMD_OK)
+                            softuart_puts(PSTR("ok\n"));
+                        else
+                            softuart_puts(PSTR("error\n"));
+                        break; 
+                    }
+                default:
+                    {
+                        if(p < cmd+(sizeof(cmd)))
+                        {
+                            *p++ = c;
+                            softuart_putchar(c);
+                        }
+                        else
+                        {
+                            softuart_putchar(7); // bell
+                        }
+                    }
+            } 
+        }
     }
     return 0;
 }

@@ -3,7 +3,7 @@ DEVICE      = ATtiny85
 CLOCK       = 8000000UL
 PROGRAMMER  = buspirate
 PORT        = /dev/ttyUSB0
-FUSES       = -F -U lfuse:w:0xe2:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
+FUSES       = -F -U lfuse:w:0xE2:m -U hfuse:w:0x5F:m -U efuse:w:0xFF:m
  
 SOURCES=main.c softuart.c
 

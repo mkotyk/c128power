@@ -25,12 +25,12 @@ const uint8_t ROM_SELECT_PIN   = (1 << PB5);
 
 #define SHORT_PRESS  30    // 1 Second
 #define LONG_PRESS   300   // 10 Seconds
-#define IDLE_TIMEOUT 3000  // 5 Mins
+#define IDLE_TIMEOUT 3000  // 100 Seconds
 
 #define CMD_OK       0
 #define CMD_ERROR    1
 
-uint8_t g_power_enabled = 1;
+uint8_t g_power_enabled = 0;
 uint8_t g_rom_select = 0;
 uint16_t g_press_down_timer = 0;
 uint16_t g_idle_timer = 0;
@@ -42,8 +42,9 @@ void hibernate(void)
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
     sleep_enable();
     sleep_bod_disable();
+    softuart_turn_rx_off();
     TIMSK = 0;
-    sei();                              // Enable global interrupts 
+    sei();                      // Enable global interrupts 
     sleep_mode();
     sleep_disable();
     setup();
@@ -52,20 +53,23 @@ void hibernate(void)
 static void power_down(void)
 {
     g_power_enabled = 0;
-    PORTB |= POWER_ENABLE_PIN;
+    PORTB |= POWER_ENABLE_PIN;  // Power enable pin high (OFF)
+    PORTB &= ~(ROM_SELECT_PIN); // Remove power from rom select
+    DDRB &= ~TOD_CLOCK_PIN;     // Turn off OCB1 output
+    
 }
 
 static void power_up(void)
 {
     g_power_enabled = 1;
-    PORTB &= ~POWER_ENABLE_PIN;
+    PORTB &= ~POWER_ENABLE_PIN; // Power enable pin low (ON)
+    PORTB |= (g_rom_select * ROM_SELECT_PIN); // Set ROM select at last known value
+    DDRB |= TOD_CLOCK_PIN;      // Re-enable TOD clock
 }
 
 // Overflow at 30Hz
 ISR(TIMER1_OVF_vect)
 {
-    if((g_idle_timer % 300) == 0)
-        PORTB ^= POWER_ENABLE_PIN;
     // Check if the RESTORE key is being pressed.
     if(!(PINB & RESTORE_KEY_PIN))
     {
@@ -87,10 +91,10 @@ ISR(TIMER1_OVF_vect)
         g_press_down_timer = 0;
         g_idle_timer++;
 
-//        if(!g_power_enabled && (g_idle_timer > IDLE_TIMEOUT))
-//        {
-//            hibernate();
-//        }
+        if(!g_power_enabled && (g_idle_timer > IDLE_TIMEOUT))
+        {
+            hibernate();
+        }
     }
 }
 
@@ -103,33 +107,40 @@ void setup(void)
     g_press_down_timer = 0;
     g_idle_timer = 0;
 
-    DDRB = TOD_CLOCK_PIN | ROM_SELECT_PIN | POWER_ENABLE_PIN | UART_TX_PIN;
-    PORTB = (g_rom_select * ROM_SELECT_PIN) | (g_power_enabled?0:POWER_ENABLE_PIN) | RESTORE_KEY_PIN;
+    DDRB =  ROM_SELECT_PIN | POWER_ENABLE_PIN | UART_TX_PIN;
+    PORTB = (g_power_enabled?0:POWER_ENABLE_PIN) | RESTORE_KEY_PIN;
     PCMSK = RESTORE_KEY_PIN;
 
     softuart_init();
 
     // Configure OCR1B output for 60Hz
-    TCCR1 = _BV(CTC1) | _BV(CS13) | _BV(CS11) | _BV(CS10);
-    GTCCR = _BV(PWM1B) | _BV(COM1B0);
+    TCCR1 = _BV(CTC1) | _BV(CS13) | _BV(CS11) | _BV(CS10);  // Prescale select CK/1024
+    GTCCR = _BV(PWM1B) | _BV(COM1B1);                       // Enable PWM on OCB1
     OCR1A = 0;
     OCR1B = 66;
     OCR1C = 132;
 
-    TIMSK |= _BV(TOV1);
-    GIMSK |= _BV(PCIE);
+    TIMSK |= _BV(TOV1);  // Interrupt on Timer 1 Overflow (used for button)
+    GIMSK |= _BV(PCIE);  // Interrupt on pin change for Restore Key (used to wake from sleep)
 
-    sei();                              // Enable interrupts 
+    sei();               // Enable interrupts 
 }
 
 static void select_rom_low(void)
 {
     g_rom_select = 0;
+    PORTB &= ~ROM_SELECT_PIN;
 }
 
 static void select_rom_high(void)
 {
     g_rom_select = 1;
+    PORTB |= ROM_SELECT_PIN;
+}
+
+static void show_version(void)
+{
+    softuart_puts("c128power v1.0");
 }
 
 typedef struct 
@@ -138,10 +149,12 @@ typedef struct
     void (*callback)(void);
 } command_t;
 
-static command_t cmds[5] =  {
+static command_t cmds[6] =  {
     { "powerdown", &power_down },
+    { "powerup", &power_up },
     { "romlow", &select_rom_low },
     { "romhigh", &select_rom_high },
+    { "version", &show_version },
     { 0, 0 }
 };
 
@@ -164,7 +177,6 @@ int main(void)
     static char cmd[10];
     char c, *p = cmd;
     setup();
-    softuart_puts(PSTR("c128power v1.0"));
     while(1)
     {
         if(softuart_kbhit()) {
@@ -172,27 +184,27 @@ int main(void)
             switch(c)
             {
                 case '\n':
-                    {
-                        *p = 0;
-                        p = cmd;
-                        if(execute_cmd(cmd) == CMD_OK)
-                            softuart_puts(PSTR("ok\n"));
-                        else
-                            softuart_puts(PSTR("error\n"));
-                        break; 
-                    }
+                {
+                    *p = 0;
+                    p = cmd;
+                    if(execute_cmd(cmd) == CMD_OK)
+                        softuart_puts("ok\n");
+                    else
+                        softuart_puts("error\n");
+                    break; 
+                }
                 default:
+                {
+                    if(p < cmd+(sizeof(cmd)))
                     {
-                        if(p < cmd+(sizeof(cmd)))
-                        {
-                            *p++ = c;
-                            softuart_putchar(c);
-                        }
-                        else
-                        {
-                            softuart_putchar(7); // bell
-                        }
+                        *p++ = c;
+                        softuart_putchar(c);
                     }
+                    else
+                    {
+                        softuart_putchar(7); // bell
+                    }
+                }
             } 
         }
     }

@@ -53,8 +53,8 @@ void hibernate(void)
 static void power_down(void)
 {
     g_power_enabled = 0;
-    PORTB |= POWER_ENABLE_PIN;  // Power enable pin high (OFF)
     PORTB &= ~(ROM_SELECT_PIN); // Remove power from rom select
+    PORTB |= POWER_ENABLE_PIN;  // Power enable pin high (OFF)
     DDRB &= ~TOD_CLOCK_PIN;     // Turn off OCB1 output
     
 }
@@ -62,8 +62,8 @@ static void power_down(void)
 static void power_up(void)
 {
     g_power_enabled = 1;
-    PORTB &= ~POWER_ENABLE_PIN; // Power enable pin low (ON)
     PORTB |= (g_rom_select * ROM_SELECT_PIN); // Set ROM select at last known value
+    PORTB &= ~POWER_ENABLE_PIN; // Power enable pin low (ON)
     DDRB |= TOD_CLOCK_PIN;      // Re-enable TOD clock
 }
 
@@ -140,7 +140,7 @@ static void select_rom_high(void)
 
 static void show_version(void)
 {
-    softuart_puts("c128power v1.0");
+    softuart_puts("c128power v1.0\n");
 }
 
 typedef struct 

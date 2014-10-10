@@ -1,0 +1,107 @@
+<html>
+    <head>
+        <title>Modifications to run a Commodore 128 off an ATX power supply</title>
+    </head>
+    <body>
+        <h1>Getting a Commodore 128 to run from an ATX power supply</h1>
+        <br>
+        I received a wonderful birthday present of a vintage Commodore 128!  Unfortunately, the buyer wasn't aware that a power adapter was needed,
+        and the seller was greedy and sold off the power supply separately.  I had confirmed the unit worked using a C=64 power supply but 
+        read accounts that the C=64 supply was under rated for the job.  Sure enough, the 128 draws up to 5VDC @ 2.5A and 9VAC @ 1A.  The C=64 power
+        supply is only rated for 5VDC @ 1A.  
+        <br>
+        I was going to slap together a 9VAC transformer and some other 5V supply, but then I realized I had a lot of old PC power supplies 
+        with more than enough current output.
+        <br>
+        I started researching what the 9VAC was actually used for by <a href="http://www.zimmers.net/anonftp/pub/cbm/schematics/computers/c128/index.html">reading the schematics</a>.
+        <br>
+        After much studying it became clear the 9VAC was used for 4 things:
+        <ul>
+            <li>Power for the tape motor - Not important to me.  Also easy enough to patch in from an ATX supply.</li>
+            <li>Regulated to +12V for the VIC and SID chips - Required</li>
+            <li>60Hz used to drive the Time of day clocks - Not required, but good to have</li>
+            <li>Power passed on to the user port for accessories - Not important to me</li>
+        </ul>
+        <br>
+        Now I could have just wired in the +5VDC, +12VDC and an external switch and called it a day, but I thought it 
+        would be nice to have the TOD clock working, and maybe a neat way to turn on and off the machine without an external switch.  I had also 
+        modifed the kernel ROMs with JiffyDOS and needed a way to switch between original kernel and JiffyDOS.
+        <br>
+        This seemed like an ideal job for an <a href="http://www.atmel.com/images/atmel-2586-avr-8-bit-microcontroller-attiny25-attiny45-attiny85_datasheet.pdf">ATTiny85</a>, which I had several on hand.
+        <br>
+        <hr>
+        <h2>Power Supply</h2>
+        <img src="01. Power supply parts.jpg"/>
+        <br>
+        For this project, any working <a href="http://www.wikiwand.com/en/ATX#Power_supply">ATX or compatible power supply</a> should work.
+        In my case, I found a very old half-breed that had AT power connectors but
+        also a remote power enable.  This made it an idea choice for hacking up.  The wire
+        colours matched up to the ATX standard.
+        <br>
+        The connector I selected is a <a href="http://www.dx.com/p/diy-16mm-6-pin-gx16-aviation-plug-socket-connector-silver-5-pieces-pack-134127#.VDgckfl4pOI">6 pin "aviation" connector that I purchased from deal extreme</a>.  
+        It fits in the limitted space between the plastic post and the newly installed connector, and clears the RF shield.  It also looks pretty clean when mounted to the back of the machine.
+        <br>
+        The wiring I'm using is 24AWG Cat5e.  This is not ideal, as it's not rated to handle the full current of 2.5A.  It just happens to be what I had on hand.
+        <br>
+        <br>
+
+
+
+        <img src="02. Power supply wiring.jpg"/>
+        <br>
+        I opted to wire right to the power supply circuit board for a cleaner result.  You could 
+        also just cut-n-splice wires.
+        <br>
+        <img src="03. Completed power supply.jpg"/>
+        <br>
+        Here is the completed power supply.
+        <br>
+        <img src="04. Power connector for C128.jpg"/>
+        <br>
+        This is the power connector.  In order to make the connector removable from the case,
+        the plugs must fit through the nut of the 6 pin connector.  I re-used wires from the power
+        supply for this.
+        <br>
+        <br>
+        <h2>C128 Installation</h2>
+        <img src="05. Cut Trace on 9VAC.jpg"/>
+        <br>
+        In order to re-use the connector pads on the board, you need to cut a 9VAC trace
+        on the connector and re-purpose it for 12V in.  Also note, the Pin 1 indicator does not
+        match the schematics.  Oops.
+        <br>
+        <img src="06. Jump 12V to regulator output.jpg"/>
+        <br>
+        Then you need to solder a wire on the bottom from the connector to the output
+        pin of the 7812 regulator.
+        <br>
+        <img src="07. Top with connector installed.jpg"/>
+        <br>
+        This is a picture with the connector soldered onto the board.
+        <br>
+        <img src="08. Solder points on C128.jpg"/>
+        <br>
+        In order to intercept the RESTORE key, and supply the Time Of Day clock,
+        wires must be soldered to the main board.
+        <br>
+        The TOD clock goes to the left side of R7.
+        <br>
+        For the restore key, I was finding that R9 was pulling the voltage down, so I unsoldered
+        the right side from the board and put heat shrink over it.  I then soldered a wire to where
+        the resistor used to be.
+        <br>
+        <img src="09. Installed module position.jpg"/>
+        <br>
+        I hot-glued my mini-control board to the main board and also hot-glued down the wires
+        at various points.  I got lucky in that the capacitor happened to fit right through
+        the RF shielding holes.
+        <br>
+        <img src="10. Installed wire routing.jpg"/>
+        <br>
+        A picture of the wires routed for TOD and Restore key.
+        <br>
+        <img src="11. Installed ROM wires.jpg"/>
+        <br>
+        A picture of the <a href="http://www.geneb.org/jiffydos/">JiffyDOS roms installed</a>.
+    </body>
+</html>

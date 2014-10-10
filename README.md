@@ -12,6 +12,7 @@ The project makes use of an ATTiny85 for several features:
 - Generate Time Of Day clock (60Hz)
 - Ability to switch Kernel ROM banks if modded for JiffyDOS
 - Connected via serial user port to power off and switch ROM banks
+  and any other cool features that will fit in 8K.
 
 
 Caveats
@@ -35,7 +36,9 @@ power that was orignally supplied.  This impacts the following areas:
 Hardware
 --------
 
-* Step by step pictures to come *
+Check under the hardware folder for instructions, schematics and photos.  
+I've only tried this on my C=128, but might also add it to one of my C=64's.  
+The same code and circuit should work on both.
 
 
 Software
@@ -44,4 +47,9 @@ Software
 This project uses the software serial routines from 
 https://github.com/blalor/avr-softuart
 
+The code has a Makefile and should compile under most versions of Linux with 
+the avr-gcc tool chain and avrdude installed.  It also compiled under Atmel
+Studio 6.2 for me.
 
+WARNING: This project uses the /RESET pin, so once it's programmed via ISP,
+you need to high-voltage clear the fuse to reprogram the device.

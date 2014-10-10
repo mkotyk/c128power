@@ -3,6 +3,7 @@
 #include <avr/sleep.h>
 #include <util/delay.h>
 #include <avr/pgmspace.h>
+#include <avr/eeprom.h>
 #include <string.h>
 
 #include "softuart.h"
@@ -29,6 +30,8 @@ const uint8_t ROM_SELECT_PIN   = (1 << PB5);
 
 #define CMD_OK       0
 #define CMD_ERROR    1
+
+#define EEPROM_DEFAULT_ROM_SEL_ADDR 0
 
 uint8_t g_power_enabled = 0;
 uint8_t g_rom_select = 0;
@@ -107,6 +110,8 @@ void setup(void)
     g_press_down_timer = 0;
     g_idle_timer = 0;
 
+    g_rom_select = eeprom_read_word(EEPROM_DEFAULT_ROM_SEL_ADDR);
+
     DDRB =  ROM_SELECT_PIN | POWER_ENABLE_PIN | UART_TX_PIN;
     PORTB = (g_power_enabled?0:POWER_ENABLE_PIN) | RESTORE_KEY_PIN;
     PCMSK = RESTORE_KEY_PIN;
@@ -138,25 +143,51 @@ static void select_rom_high(void)
     PORTB |= ROM_SELECT_PIN;
 }
 
+static void default_rom_low(void)
+{
+    eeprom_write_word(EEPROM_DEFAULT_ROM_SEL_ADDR, 0);
+}
+
+static void default_rom_high(void)
+{
+    eeprom_write_word(EEPROM_DEFAULT_ROM_SEL_ADDR, 1);
+}
+
 static void show_version(void)
 {
-    softuart_puts("c128power v1.0\n");
+    softuart_puts_p(PSTR("c128power v1.0\r\n"));
 }
+
+static void show_help(void);
 
 typedef struct 
 {
     const char *name;
+    const char *help;
     void (*callback)(void);
 } command_t;
 
-static command_t cmds[6] =  {
-    { "powerdown", &power_down },
-    { "powerup", &power_up },
-    { "romlow", &select_rom_low },
-    { "romhigh", &select_rom_high },
-    { "version", &show_version },
+static command_t cmds[] =  {
+    { "powerdown", "turn power off", &power_down },
+    { "powerup", "turn power on (debug)", &power_up },
+    { "roml", "select kernel rom in high bank", &select_rom_low },
+    { "romh", "select kernel rom in low bank", &select_rom_high },
+    { "defroml", "default to kernel rom in low bank", &default_rom_low },
+    { "defromh", "default to kernel rom in high bank", &default_rom_high },
+    { "version", "show version", &show_version },
+    { "help", "this screen", &show_help },
     { 0, 0 }
 };
+
+static void show_help(void)
+{
+    uint8_t i;
+    for(i = 0; cmds[i].name != 0; i++)
+    {
+        softuart_puts(cmds[i].help);
+        softuart_puts_p(PSTR("\r\n"));
+    }
+}
 
 static int execute_cmd(char *cmd)
 {
@@ -184,13 +215,14 @@ int main(void)
             switch(c)
             {
                 case '\n':
+                case '\r':
                 {
                     *p = 0;
                     p = cmd;
                     if(execute_cmd(cmd) == CMD_OK)
-                        softuart_puts("ok\n");
+                        softuart_puts_p(PSTR("ok\r\n"));
                     else
-                        softuart_puts("error\n");
+                        softuart_puts_p(PSTR("error\r\n"));
                     break; 
                 }
                 default:

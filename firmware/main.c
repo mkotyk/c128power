@@ -170,10 +170,10 @@ typedef struct
 static command_t cmds[] =  {
     { "powerdown", "turn power off", &power_down },
     { "powerup", "turn power on (debug)", &power_up },
-    { "roml", "select kernel rom in high bank", &select_rom_low },
-    { "romh", "select kernel rom in low bank", &select_rom_high },
-    { "defroml", "default to kernel rom in low bank", &default_rom_low },
-    { "defromh", "default to kernel rom in high bank", &default_rom_high },
+    { "roml", "select kernel rom high", &select_rom_low },
+    { "romh", "select kernel rom low", &select_rom_high },
+    { "defroml", "default to kernel rom low", &default_rom_low },
+    { "defromh", "default to kernel rom high", &default_rom_high },
     { "version", "show version", &show_version },
     { "help", "this screen", &show_help },
     { 0, 0 }
@@ -184,6 +184,8 @@ static void show_help(void)
     uint8_t i;
     for(i = 0; cmds[i].name != 0; i++)
     {
+        softuart_puts(cmds[i].name);
+        softuart_puts_p(PSTR(" - "));
         softuart_puts(cmds[i].help);
         softuart_puts_p(PSTR("\r\n"));
     }
@@ -217,9 +219,10 @@ int main(void)
                 case '\n':
                 case '\r':
                 {
+                    softuart_putchar(c);
                     *p = 0;
                     p = cmd;
-                    if(execute_cmd(cmd) == CMD_OK)
+                    if((cmd[0] == '\0') || (execute_cmd(cmd) == CMD_OK))
                         softuart_puts_p(PSTR("ok\r\n"));
                     else
                         softuart_puts_p(PSTR("error\r\n"));
